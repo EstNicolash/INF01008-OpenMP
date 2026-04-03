@@ -1,12 +1,8 @@
 #ifndef LINEAR_REGRESSION_HPP
 #define LINEAR_REGRESSION_HPP
 
-#include <iostream>
 #include <memory>
 #include <string>
-#include <vector>
-#include <fstream>
-#include <sstream>
 
 struct Matrix {
     size_t rows;

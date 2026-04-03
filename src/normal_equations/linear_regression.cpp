@@ -1,5 +1,8 @@
 #include "linear_regression.hpp"
 #include <memory>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
