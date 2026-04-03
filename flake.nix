@@ -6,8 +6,14 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
       in
@@ -27,16 +33,25 @@
             gdb
             valgrind
             linuxPackages_latest.perf
+
+            #python
+            python314
+            python314Packages.numpy
+
+            #utils
+            unzip
+            curl
           ];
 
           shellHook = ''
             echo "--- Parallel Programming Environment Active ---"
             echo "GCC Version: $(gcc --version | head -n 1)"
             echo "Quick Start: cmake -S . -B build && cmake --build build"
-            
+
             # Set default OpenMP threads to the number of logical cores
             export OMP_NUM_THREADS=$(nproc)
           '';
         };
-      });
+      }
+    );
 }
