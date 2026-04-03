@@ -5,6 +5,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <sstream>
 
 struct Matrix {
     size_t rows;
@@ -28,17 +30,12 @@ struct Matrix {
     Matrix(Matrix&&) = default;
     Matrix& operator=(Matrix&&) = default;
 };
-
 class LinearRegression {
 public:
     LinearRegression() = default;
-
     bool load_data(const std::string& filename);
-
     void fit();
-
-    std::unique_ptr<double[]> predict(const Matrix& input_X) const;
-
+    //std::unique_ptr<double[]> predict(const Matrix& input_X) const;
     const std::unique_ptr<double[]>& get_coefficients() const { return beta; }
 
 private:
@@ -46,11 +43,13 @@ private:
     std::unique_ptr<double[]> y;
     size_t num_samples = 0;
     size_t num_features = 0;
-
     std::unique_ptr<double[]> beta;
 
-    std::unique_ptr<Matrix> transpose(const Matrix& m) const;
-    std::unique_ptr<Matrix> multiply(const Matrix& A, const Matrix& B) const;
+
+    std::unique_ptr<Matrix> compute_XtX() const;
+
+    std::unique_ptr<double[]> compute_Xty() const;
+
     std::unique_ptr<Matrix> invert(const Matrix& m) const;
 };
 

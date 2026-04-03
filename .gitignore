@@ -1,4 +1,5 @@
 #Data
+.clangd
 *.csv
 
 # Nix & direnv
@@ -12,6 +13,7 @@ CMakeScripts/
 cmake_install.cmake
 install_manifest.txt
 compile_commands.json
+.cache/
 
 
 # Prerequisites
