@@ -8,20 +8,28 @@
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
     auto XT = std::make_unique<Matrix>(num_features, num_samples);
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++){
         for(size_t j = 0; j < num_samples; j++){
             (*XT)(i, j) = (*X)(j, i);
         }
     }
     std::unique_ptr<Matrix> A = std::make_unique<Matrix>(num_features, num_features);
+
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++){
-        for(size_t j = 0; j < num_features; j++){
+        for(size_t j = i; j < num_features; j++){
             double sum = 0.0;
+
+            #pragma omp simd reduction(+:sum)
             for(size_t k = 0; k < num_samples; k++){
                 sum += (*XT)(i,k) * (*XT)(j,k);
             }
+
             (*A)(i, j) = sum;
-            (*A)(j, i) = sum;
+            if (i != j) {
+                (*A)(j, i) = sum;
+            }
         }
     }
 
@@ -32,8 +40,10 @@ std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
 
     std::unique_ptr<double[]> b = std::make_unique<double[]>(num_features);
 
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++) {
         double sum = 0.0;
+        #pragma omp simd reduction(+:sum)
         for(size_t k = 0; k < num_samples; k++) {
             sum += (*X)(k, i) * y[k];
         }
@@ -54,6 +64,7 @@ std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
 
     // Create identity matrix
     auto I = std::make_unique<Matrix>(n, n);
+
     for (size_t i = 0; i < n; i++) {
         for (size_t j = 0; j < n; j++) {
             (*I)(i, j) = (i == j) ? 1.0 : 0.0;
@@ -74,6 +85,7 @@ std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
         if (max_val < 1e-15) throw std::runtime_error("Matriz singular!");
 
         if (pivot_row != i) {
+            // #pragma omp parallel for schedule(runtime)
             for (size_t j = 0; j < n; j++) {
                 std::swap((*A)(i, j), (*A)(pivot_row, j));
                 std::swap((*I)(i, j), (*I)(pivot_row, j));
@@ -81,14 +93,17 @@ std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
         }
 
         double pivot = (*A)(i, i);
+        // #pragma omp parallel for schedule(runtime)
         for (size_t j = 0; j < n; j++) {
             (*A)(i, j) /= pivot;
             (*I)(i, j) /= pivot;
         }
 
+        #pragma omp parallel for schedule(runtime)
         for (size_t k = 0; k < n; k++) {
             if (k != i) {
                 double factor = (*A)(k, i);
+                #pragma omp simd
                 for (size_t j = 0; j < n; j++) {
                     (*A)(k, j) -= factor * (*A)(i, j);
                     (*I)(k, j) -= factor * (*I)(i, j);
@@ -152,8 +167,10 @@ void LinearRegression::fit() {
     // (XtX_inv) * (Xty)
     beta = std::make_unique<double[]>(num_features);
 
+    #pragma omp parallel for schedule(runtime)
     for (size_t i = 0; i < num_features; i++) {
         double sum = 0.0;
+        #pragma omp simd reduction(+:sum)
         for (size_t j = 0; j < num_features; j++) {
             sum += (*XtX_inv)(i, j) * Xty[j];
         }
