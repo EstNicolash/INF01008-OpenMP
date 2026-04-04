@@ -18,34 +18,38 @@ std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
     #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++){
+        const double* __restrict row_i = &(*XT)(i, 0);
+
         for(size_t j = i; j < num_features; j++){
+            const double* __restrict row_j = &(*XT)(j, 0);
             double sum = 0.0;
 
             #pragma omp simd reduction(+:sum)
             for(size_t k = 0; k < num_samples; k++){
-                sum += (*XT)(i,k) * (*XT)(j,k);
+                sum += row_i[k] * row_j[k];
             }
 
             (*A)(i, j) = sum;
-            if (i != j) {
-                (*A)(j, i) = sum;
-            }
+            if (i != j) (*A)(j, i) = sum;
         }
     }
 
     return A;
 }
-
 std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
+    auto b = std::make_unique<double[]>(num_features);
 
-    std::unique_ptr<double[]> b = std::make_unique<double[]>(num_features);
+    const double* __restrict ptr_y = y.get();
+    const double* __restrict ptr_X = X->data.get();
+    size_t cols = X->cols;
 
     #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++) {
         double sum = 0.0;
+
         #pragma omp simd reduction(+:sum)
         for(size_t k = 0; k < num_samples; k++) {
-            sum += (*X)(k, i) * y[k];
+            sum += ptr_X[k * cols + i] * ptr_y[k];
         }
         b[i] = sum;
     }
@@ -103,10 +107,17 @@ std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
         for (size_t k = 0; k < n; k++) {
             if (k != i) {
                 double factor = (*A)(k, i);
+
+                double* __restrict__ rK_A = &(*A)(k, 0);
+                const double* __restrict__ rI_A = &(*A)(i, 0);
+
+                double* __restrict__ rK_I = &(*I)(k, 0);
+                const double* __restrict__ rI_I = &(*I)(i, 0);
+
                 #pragma omp simd
                 for (size_t j = 0; j < n; j++) {
-                    (*A)(k, j) -= factor * (*A)(i, j);
-                    (*I)(k, j) -= factor * (*I)(i, j);
+                    rK_A[j] -= factor * rI_A[j];
+                    rK_I[j] -= factor * rI_I[j];
                 }
             }
         }
@@ -167,14 +178,22 @@ void LinearRegression::fit() {
     // (XtX_inv) * (Xty)
     beta = std::make_unique<double[]>(num_features);
 
-    #pragma omp parallel for schedule(runtime)
+
+
+    const double* __restrict__ ptr_inv = XtX_inv->data.get();
+    const double* __restrict__ ptr_Xty = Xty.get();
+    double* __restrict__ ptr_beta = beta.get();
+
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < num_features; i++) {
         double sum = 0.0;
+        const double* row_i = &ptr_inv[i * num_features];
+
         #pragma omp simd reduction(+:sum)
         for (size_t j = 0; j < num_features; j++) {
-            sum += (*XtX_inv)(i, j) * Xty[j];
+            sum += row_i[j] * ptr_Xty[j];
         }
-        beta[i] = sum;
+        ptr_beta[i] = sum;
     }
 
 }
