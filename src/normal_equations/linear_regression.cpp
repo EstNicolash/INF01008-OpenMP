@@ -4,6 +4,12 @@
 #include <sstream>
 #include <iostream>
 #include <omp.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <charconv>
+#include <vector>
 
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
@@ -127,44 +133,52 @@ std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
 }
 
 bool LinearRegression::load_data(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) return false;
+    int fd = open(filename.c_str(), O_RDONLY);
+    if (fd == -1) return false;
 
-    std::string line;
-    num_samples = 0;
-    num_features = 0;
+    struct stat sb;
+    fstat(fd, &sb);
+    size_t length = sb.st_size;
+    const char* addr = static_cast<const char*>(mmap(NULL, length, PROT_READ, MAP_PRIVATE, fd, 0));
+    if (addr == MAP_FAILED) { close(fd); return false; }
 
-    if (std::getline(file, line)) {
-        num_samples++;
-        std::stringstream ss(line);
-        std::string value;
-        while (std::getline(ss, value, ',')) num_features++;
+    std::vector<size_t> line_offsets;
+    line_offsets.push_back(0);
+
+    for (size_t i = 0; i < length; ++i) {
+        if (addr[i] == '\n') line_offsets.push_back(i + 1);
     }
-    while (std::getline(file, line)) num_samples++;
+    if (addr[length-1] != '\n') line_offsets.push_back(length);
 
-    num_features--;
+    num_samples = line_offsets.size() - 1;
+
+    num_features = 0;
+    size_t first_line_end = line_offsets[1] - 1;
+    for (size_t i = 0; i < first_line_end; ++i) {
+        if (addr[i] == ',') num_features++;
+    }
 
     X = std::make_unique<Matrix>(num_samples, num_features);
     y = std::make_unique<double[]>(num_samples);
+    double* raw_X = X->data.get();
+    double* raw_y = y.get();
 
-    file.clear();
-    file.seekg(0);
+    #pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < num_samples; ++i) {
+        const char* current = addr + line_offsets[i];
+        const char* line_end = addr + line_offsets[i+1];
 
-    size_t current_row = 0;
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string value;
-
-        std::getline(ss, value, ',');
-        y[current_row] = std::stod(value);
+        std::from_chars_result res = std::from_chars(current, line_end, raw_y[i]);
+        current = res.ptr + 1;
 
         for (size_t j = 0; j < num_features; ++j) {
-            std::getline(ss, value, ',');
-            (*X)(current_row, j) = std::stod(value);
+            res = std::from_chars(current, line_end, raw_X[i * num_features + j]);
+            current = res.ptr + 1;
         }
-        current_row++;
     }
 
+    munmap((void*)addr, length);
+    close(fd);
     return true;
 }
 
