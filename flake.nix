@@ -25,6 +25,7 @@
             cmake
             gnumake
             pkg-config
+            llvmPackages_22.openmp
 
             # Testing Frameworks
             catch2_3
@@ -37,6 +38,7 @@
             #python
             python314
             python314Packages.numpy
+            python314Packages.pandas
 
             #utils
             unzip
