@@ -3,15 +3,22 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <omp.h>
 
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
+    auto XT = std::make_unique<Matrix>(num_features, num_samples);
+    for(size_t i = 0; i < num_features; i++){
+        for(size_t j = 0; j < num_samples; j++){
+            (*XT)(i, j) = (*X)(j, i);
+        }
+    }
     std::unique_ptr<Matrix> A = std::make_unique<Matrix>(num_features, num_features);
     for(size_t i = 0; i < num_features; i++){
         for(size_t j = 0; j < num_features; j++){
             double sum = 0.0;
             for(size_t k = 0; k < num_samples; k++){
-                sum += (*X)(k, i) * (*X)(k, j);
+                sum += (*XT)(i,k) * (*XT)(j,k);
             }
             (*A)(i, j) = sum;
             (*A)(j, i) = sum;
