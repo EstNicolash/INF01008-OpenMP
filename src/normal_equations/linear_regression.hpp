@@ -33,6 +33,9 @@ public:
     void fit();
     //std::unique_ptr<double[]> predict(const Matrix& input_X) const;
     const std::unique_ptr<double[]>& get_coefficients() const { return beta; }
+    size_t get_num_features() const { return num_features; }
+    size_t get_num_samples() const { return num_samples; }
+
 
 private:
     std::unique_ptr<Matrix> X;
