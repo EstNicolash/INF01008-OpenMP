@@ -6,16 +6,27 @@
 #include <omp.h>
 #include "linear_regression.hpp"
 
+#ifdef USE_ITT
+    #include <ittnotify.h>
+    #define VTUNE_RESUME() __itt_resume()
+    #define VTUNE_PAUSE()  __itt_pause()
+#else
+    #define VTUNE_RESUME()
+    #define VTUNE_PAUSE()
+#endif
+
+#ifdef SILENT
+    #define LOG(msg)
+#else
+    #define LOG(msg) std::cout << msg
+#endif
 
 namespace fs = std::filesystem;
 
-void log_to_csv(const std::string& log_file,
-                const std::string& ds_name,
-                size_t n, size_t d,
-                int threads,
+void log_to_csv(const std::string& log_file, const std::string& ds_name,
+                size_t n, size_t d, int threads,
                 double load_t, double fit_t) {
     std::ofstream file(log_file, std::ios::app);
-    file.seekp(0, std::ios::end);
     if (file.tellp() == 0) {
         file << "dataset,samples,features,threads,load_time,fit_time,total_time\n";
     }
@@ -25,6 +36,8 @@ void log_to_csv(const std::string& log_file,
 }
 
 int main(int argc, char* argv[]) {
+    VTUNE_PAUSE();
+
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <dataset_path.csv> [log_file.csv]" << std::endl;
         return 1;
@@ -32,16 +45,14 @@ int main(int argc, char* argv[]) {
 
     std::string filepath = argv[1];
     std::string log_filename = (argc > 2) ? argv[2] : "bench_results.csv";
-
     std::string ds_name = fs::path(filepath).filename().string();
 
     LinearRegression model;
 
-    std::cout << "================================================" << std::endl;
-    std::cout << "   Parallel Linear Regression - OpenMP Version  " << std::endl;
-    std::cout << "================================================" << std::endl;
+    LOG("================================================\n");
+    LOG("   Parallel Linear Regression - OpenMP Version  \n");
+    LOG("================================================\n");
 
-    // 1. Data Loading Stage
     double start_load = omp_get_wtime();
     if (!model.load_data(filepath)) {
         std::cerr << "Error: Could not open or read " << filepath << std::endl;
@@ -50,38 +61,36 @@ int main(int argc, char* argv[]) {
     double end_load = omp_get_wtime();
     double load_duration = end_load - start_load;
 
-    // 2. Metadata Retrieval
     size_t N = model.get_num_samples();
     size_t D = model.get_num_features();
     int threads = omp_get_max_threads();
 
-    std::cout << "Dataset: " << ds_name << " (" << N << "x" << D << ")" << std::endl;
-    std::cout << "Threads: " << threads << std::endl;
-    std::cout << "Load Time: " << load_duration << "s" << std::endl;
+    LOG("Dataset: " << ds_name << " (" << N << "x" << D << ")\n");
+    LOG("Threads: " << threads << "\n");
+    LOG("Load Time: " << load_duration << "s\n");
 
-    // 3. Training Stage
+    VTUNE_RESUME();
     double start_fit = omp_get_wtime();
     model.fit();
     double end_fit = omp_get_wtime();
+    VTUNE_PAUSE();
+
     double fit_duration = end_fit - start_fit;
 
-    // 4. Logging
     log_to_csv(log_filename, ds_name, N, D, threads, load_duration, fit_duration);
-    std::cout << "Results logged to " << log_filename << std::endl;
+    LOG("Results logged to " << log_filename << "\n");
 
-    // 5. Execution Summary & Coefficients
-    std::cout << "\n--- Execution Summary ---" << std::endl;
-    std::cout << "Fit Execution Time: " << std::fixed << std::setprecision(6)
-              << fit_duration << " seconds" << std::endl;
+    LOG("\n--- Execution Summary ---\n");
+    LOG("Fit Execution Time: " << std::fixed << std::setprecision(6) << fit_duration << " seconds\n");
 
     const auto& beta = model.get_coefficients();
     if (beta) {
-        std::cout << "\nModel Coefficients (first 10):" << std::endl;
+        LOG("\nModel Coefficients (first 10):\n");
         for (size_t i = 0; i < (D < 10 ? D : 10); ++i) {
-            std::cout << "  Beta[" << i << "]: " << beta[i] << std::endl;
+            LOG("  Beta[" << i << "]: " << beta[i] << "\n");
         }
     }
-    std::cout << "================================================" << std::endl;
+    LOG("================================================\n");
 
     return 0;
 }
