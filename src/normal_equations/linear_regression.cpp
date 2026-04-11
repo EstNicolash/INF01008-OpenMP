@@ -14,14 +14,18 @@
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
     auto XT = std::make_unique<Matrix>(num_features, num_samples);
+
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++){
-        #pragma omp parallel for schedule(runtime)
+        #pragma omp simd
         for(size_t j = 0; j < num_samples; j++){
             (*XT)(i, j) = (*X)(j, i);
         }
     }
     std::unique_ptr<Matrix> A = std::make_unique<Matrix>(num_features, num_features);
 
+
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++){
         const double* __restrict row_i = &(*XT)(i, 0);
 
@@ -29,7 +33,7 @@ std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
             const double* __restrict row_j = &(*XT)(j, 0);
             double sum = 0.0;
 
-            #pragma omp parallel for simd schedule(runtime) reduction(+:sum)
+            #pragma omp simd reduction(+:sum)
             for(size_t k = 0; k < num_samples; k++){
                 sum += row_i[k] * row_j[k];
             }
@@ -48,10 +52,11 @@ std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
     const double* __restrict ptr_X = X->data.get();
     size_t cols = X->cols;
 
+    #pragma omp parallel for schedule(runtime)
     for(size_t i = 0; i < num_features; i++) {
         double sum = 0.0;
 
-        #pragma omp parallel for simd schedule(runtime) reduction(+:sum)
+        #pragma omp simd reduction(+:sum)
         for(size_t k = 0; k < num_samples; k++) {
             sum += ptr_X[k * cols + i] * ptr_y[k];
         }
