@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <charconv>
 #include <vector>
-
+/*
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
     auto XT = std::make_unique<Matrix>(num_features, num_samples);
@@ -44,7 +44,67 @@ std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
     }
 
     return A;
+    }*/
+
+std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
+    size_t D = num_features;
+    size_t N = num_samples;
+    size_t total_size = D * D;
+
+    auto A = std::make_unique<Matrix>(D, D);
+    double* __restrict__ raw_A = A->data.get();
+    const double* __restrict__ raw_X = X->data.get();
+
+    std::fill(raw_A, raw_A + total_size, 0.0);
+
+    #pragma omp parallel for schedule(runtime) reduction(+:raw_A[0:total_size])
+    for (size_t k = 0; k < N; k++) {
+        const double* __restrict__ row_k = &raw_X[k * D];
+
+        for (size_t i = 0; i < D; i++) {
+            double val_i = row_k[i];
+
+            #pragma omp simd
+            for (size_t j = i; j < D; j++) {
+                raw_A[i * D + j] += val_i * row_k[j];
+            }
+        }
+    }
+
+    for (size_t i = 0; i < D; i++) {
+        for (size_t j = i + 1; j < D; j++) {
+            raw_A[j * D + i] = raw_A[i * D + j];
+        }
+    }
+
+    return A;
 }
+std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
+    size_t D = num_features;
+    size_t N = num_samples;
+    auto b = std::make_unique<double[]>(D);
+
+    const double* __restrict__ ptr_y = y.get();
+    const double* __restrict__ ptr_X = X->data.get();
+    double* __restrict__ raw_b = b.get();
+
+    std::fill(raw_b, raw_b + D, 0.0);
+
+    #pragma omp parallel for schedule(runtime) reduction(+:raw_b[0:D])
+    for(size_t k = 0; k < N; k++) {
+        double y_k = ptr_y[k];
+
+        const double* __restrict__ row_k = &ptr_X[k * D];
+
+        #pragma omp simd
+        for(size_t i = 0; i < D; i++) {
+            raw_b[i] += row_k[i] * y_k;
+        }
+    }
+
+    return b;
+}
+/*
 std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
     auto b = std::make_unique<double[]>(num_features);
 
@@ -63,7 +123,7 @@ std::unique_ptr<double[]> LinearRegression::compute_Xty() const {
         b[i] = sum;
     }
     return b;
-}
+    }*/
 
 
 std::unique_ptr<Matrix> LinearRegression::invert(const Matrix& m) const {
