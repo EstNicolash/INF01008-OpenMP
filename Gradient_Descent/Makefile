@@ -11,7 +11,6 @@ BIN_NAMES = benchmark
 # extensions #
 SRC_EXT = cpp
 
-# ===== IMPORTANTE: só benchmark.cpp + utils.cpp =====
 SOURCES = $(SRC_PATH)/benchmark.cpp $(SRC_PATH)/utils.cpp
 
 OBJECTS = $(SOURCES:$(SRC_PATH)/%.$(SRC_EXT)=$(BUILD_PATH)/%.o)
@@ -49,8 +48,6 @@ clean:
 $(BUILD_PATH)/%.o: $(SRC_PATH)/%.$(SRC_EXT)
 	@echo "Compiling: $< -> $@"
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -MP -MMD -c $< -o $@
-
-# ===== SÓ BENCHMARK =====
 
 $(BIN_PATH)/benchmark: $(BUILD_PATH)/benchmark.o $(BUILD_PATH)/utils.o
 	@echo "Linking benchmark"
