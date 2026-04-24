@@ -2,7 +2,16 @@
 #include <vector>
 #include <fstream>
 #include <omp.h>
-#include <ittnotify.h>
+
+#ifdef USE_ITT
+    #include <ittnotify.h>
+    #define VTUNE_RESUME() __itt_resume()
+    #define VTUNE_PAUSE()  __itt_pause()
+#else
+    #define VTUNE_RESUME()
+    #define VTUNE_PAUSE()
+#endif
+
 
 // ===== FUNÇÃO =====
 void runGradientDescent(const std::vector<std::vector<float>>& trainingData,
@@ -26,6 +35,8 @@ std::vector<std::vector<float>> generateData(int N) {
 
 // ===== MAIN =====
 int main(int argc, char* argv[]) {
+
+    VTUNE_PAUSE();
     float learningRate = 0.0000001f;
 
     int numIterations = 5000;
@@ -42,11 +53,11 @@ int main(int argc, char* argv[]) {
 
         auto data = generateData(N);
 
-        __itt_resume();
+        VTUNE_RESUME();
 
         runGradientDescent(data, learningRate, numIterations, false);
 
-        __itt_pause();
+        VTUNE_PAUSE();
 
         return 0;
     }
