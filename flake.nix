@@ -33,12 +33,14 @@
             # Debugging and Profiling
             gdb
             valgrind
-            linuxPackages_latest.perf
+            perf
 
             #python
             python314
             python314Packages.numpy
             python314Packages.pandas
+            python314Packages.altair
+            python314Packages.ipykernel
 
             #utils
             unzip
