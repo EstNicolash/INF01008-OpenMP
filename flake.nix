@@ -41,6 +41,7 @@
             python314Packages.pandas
             python314Packages.altair
             python314Packages.ipykernel
+            python314Packages.scikit-learn
 
             #utils
             unzip
