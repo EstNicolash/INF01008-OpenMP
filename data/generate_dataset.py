@@ -35,6 +35,12 @@ if __name__ == "__main__":
         ("big_heavy", 500000, 100),     # ~400 MB
         ("huge_stress", 750000, 110),   # ~650 MB
         ("large_stress", 1000000, 120), # ~1 GB+
+
+        # Gradient Descent vs. Normal Equations
+        ("crossover_search", 20000, 800),
+        ("gd_wins_ne",    15000, 2500),
+        ("fat_matrix_trap", 2000, 5000),
+        ("memory_killer", 5000, 10000), # GD showcase: O(D^3) makes Normal Equations unfeasible here.
     ]
 
     for name, r, c in datasets:
