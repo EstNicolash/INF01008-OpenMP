@@ -13,8 +13,8 @@ def run_gradient_descent_reference(filename, learning_rate=0.1, num_iterations=5
         start_load = time.time()
         df = pd.read_csv(filename, header=None)
 
-        y = df.iloc[:, 0].values
-        X = df.iloc[:, 1:].values.astype(np.float64)
+        y = df.iloc[:, 0].values.astype(np.float32)
+        X = df.iloc[:, 1:].values.astype(np.float32)
 
         N, D = X.shape
 
@@ -41,7 +41,7 @@ def run_gradient_descent_reference(filename, learning_rate=0.1, num_iterations=5
 
     print(f"Starting model training... (LR={learning_rate}, Iters={num_iterations})")
 
-    beta = np.zeros(D, dtype=np.float64)
+    beta = np.zeros(D, dtype=np.float32)
 
     start_fit = time.time()
 

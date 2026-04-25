@@ -9,33 +9,38 @@
 #include <omp.h>
 #include <iostream>
 #include <vector>
+
 void normalizeFeatures(Matrix& data) {
-    size_t N = data.rows;
+    size_t N    = data.rows;
     size_t cols = data.cols;
+
+    const float inv_N = 1.0f / static_cast<float>(N);
 
     #pragma omp parallel for schedule(runtime)
     for (size_t j = 1; j < cols; j++) {
 
         float sum = 0.0f;
+        #pragma omp simd reduction(+:sum)
         for (size_t i = 0; i < N; i++) {
             sum += data(i, j);
         }
-        float mean = sum / static_cast<float>(N);
+        const float mean = sum * inv_N;
 
         float variance_sum = 0.0f;
+        #pragma omp simd reduction(+:variance_sum)
         for (size_t i = 0; i < N; i++) {
-            float diff = data(i, j) - mean;
+            const float diff = data(i, j) - mean;
             variance_sum += diff * diff;
         }
-        float variance = variance_sum / static_cast<float>(N);
-        float std_dev = std::sqrt(variance);
 
-        if (std_dev < 1e-8f) {
-            std_dev = 1.0f;
-        }
+        float std_dev = std::sqrt(variance_sum * inv_N);
+        if (std_dev < 1e-8f) std_dev = 1.0f;
 
+        const float inv_std = 1.0f / std_dev;
+
+        #pragma omp simd
         for (size_t i = 0; i < N; i++) {
-            data(i, j) = (data(i, j) - mean) / std_dev;
+            data(i, j) = (data(i, j) - mean) * inv_std;
         }
     }
 }
@@ -45,49 +50,49 @@ std::vector<float> calculateLossAndGradient(const Matrix& trainingData,
     size_t N = trainingData.rows;
     size_t D = trainingData.cols - 1;
 
-    std::vector<float> global_grads(D, 0.0f);
-    float global_loss = 0.0f;
+    std::vector<float> grads(D, 0.0f);
+    float total_loss = 0.0f;
+    const float inv_N = 1.0f / static_cast<float>(N);
 
-    #pragma omp parallel
-    {
-        std::vector<float> local_grads(D, 0.0f);
-        float local_loss = 0.0f;
+    float* __restrict__       raw_grads = grads.data();
+    const float* __restrict__ raw_w     = weights.data();
+    const float* __restrict__ raw_data  = trainingData.data.get();
+    const size_t              cols      = trainingData.cols;
 
-        #pragma omp for schedule(static)
-        for (size_t i = 0; i < N; i++) {
-            float y = trainingData(i, 0);
+    #pragma omp parallel for schedule(static)  reduction(+:total_loss)  reduction(+:raw_grads[0:D])
+    for (size_t i = 0; i < N; i++) {
 
-            float score = 0.0f;
-            #pragma omp simd
-            for (size_t j = 0; j < D; j++) {
-                score += weights[j] * trainingData(i, j + 1);
-            }
+        const float* __restrict__ row = raw_data + i * cols;
 
-            float residual = score - y;
-            local_loss += residual * residual;
+        const float y = row[0];
 
-            #pragma omp simd
-            for (size_t j = 0; j < D; j++) {
-                local_grads[j] += 2.0f * residual * trainingData(i, j + 1);
-            }
+        float score = 0.0f;
+        #pragma omp simd reduction(+:score)
+        for (size_t j = 0; j < D; j++) {
+            score += raw_w[j] * row[j + 1];
         }
 
-        #pragma omp critical
-        {
-            global_loss += local_loss;
-            for (size_t j = 0; j < D; j++) {
-                global_grads[j] += local_grads[j];
-            }
+        const float residual     = score - y;
+        total_loss              += residual * residual;
+        const float two_residual = 2.0f * residual;
+
+        #pragma omp simd
+        for (size_t j = 0; j < D; j++) {
+            raw_grads[j] += two_residual * row[j + 1];
         }
     }
 
-    out_loss = global_loss / static_cast<float>(N);
+    out_loss = total_loss * inv_N;
+
+    #pragma omp simd
     for (size_t j = 0; j < D; j++) {
-        global_grads[j] /= static_cast<float>(N);
+        raw_grads[j] *= inv_N;
     }
 
-    return global_grads;
+    return grads;
 }
+
+
 
 // === GRADIENT DESCENT ===
 std::vector<float> runGradientDescent(const Matrix& trainingData,
@@ -103,6 +108,7 @@ std::vector<float> runGradientDescent(const Matrix& trainingData,
 
         std::vector<float> grads = calculateLossAndGradient(trainingData, weights, loss);
 
+        #pragma omp simd
         for (size_t j = 0; j < D; j++) {
             weights[j] -= learningRate * grads[j];
         }

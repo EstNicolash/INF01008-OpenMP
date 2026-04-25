@@ -47,7 +47,7 @@ std::vector<float> initializeWeights();
 void calculateLossAndGradient(const Matrix& trainingData,
                                const std::vector<float>& weights,
                                float& loss,
-                               float& grad0, float& grad1);
+                               std::vector<float>& grads);
 
 
 // Function to add two vectors and store the result in the first vector
