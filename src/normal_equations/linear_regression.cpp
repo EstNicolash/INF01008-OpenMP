@@ -45,35 +45,51 @@ std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
 
     return A;
     }*/
-
 std::unique_ptr<Matrix> LinearRegression::compute_XtX() const {
     size_t D = num_features;
     size_t N = num_samples;
-    size_t total_size = D * D;
 
     auto A = std::make_unique<Matrix>(D, D);
     double* __restrict__ raw_A = A->data.get();
     const double* __restrict__ raw_X = X->data.get();
+    std::fill(raw_A, raw_A + D * D, 0.0);
 
-    std::fill(raw_A, raw_A + total_size, 0.0);
+    int nthreads = omp_get_max_threads();
 
-    #pragma omp parallel for schedule(runtime) reduction(+:raw_A[0:total_size])
-    for (size_t k = 0; k < N; k++) {
-        const double* __restrict__ row_k = &raw_X[k * D];
+    constexpr size_t REDUCTION_LIMIT = 64ULL * 1024 * 1024;
+    size_t reduction_cost = D * D * sizeof(double) * nthreads;
 
-        for (size_t i = 0; i < D; i++) {
-            double val_i = row_k[i];
-
-            #pragma omp simd
-            for (size_t j = i; j < D; j++) {
-                raw_A[i * D + j] += val_i * row_k[j];
+    if (reduction_cost <= REDUCTION_LIMIT) {
+        #pragma omp parallel for schedule(static) reduction(+:raw_A[0:D*D])
+        for (size_t k = 0; k < N; k++) {
+            const double* __restrict__ row_k = &raw_X[k * D];
+            for (size_t i = 0; i < D; i++) {
+                double val_i = row_k[i];
+                #pragma omp simd
+                for (size_t j = i; j < D; j++) {
+                    raw_A[i * D + j] += val_i * row_k[j];
+                }
             }
         }
-    }
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < D; i++) {
+            for (size_t j = i + 1; j < D; j++) {
+                raw_A[j * D + i] = raw_A[i * D + j];
+            }
+        }
 
-    for (size_t i = 0; i < D; i++) {
-        for (size_t j = i + 1; j < D; j++) {
-            raw_A[j * D + i] = raw_A[i * D + j];
+    } else {
+        #pragma omp parallel for schedule(dynamic)
+        for (size_t i = 0; i < D; i++) {
+            for (size_t j = i; j < D; j++) {
+                double sum = 0.0;
+                #pragma omp simd reduction(+:sum)
+                for (size_t k = 0; k < N; k++) {
+                    sum += raw_X[k * D + i] * raw_X[k * D + j];
+                }
+                raw_A[i * D + j] = sum;
+                raw_A[j * D + i] = sum;
+            }
         }
     }
 
