@@ -23,8 +23,11 @@ g++ -O3 -g -march=native -fopenmp \
     -L /home/intel/oneapi/vtune/2021.1.1/lib64 -littnotify -ldl \
     -o normal_equations.out
 
-DATASETS=("medium_bench.csv" "tiny_test.csv" "standard_mid.csv" "big_heavy.csv" "year_prediction_msd.csv" "huge_stress.csv" "large_stress.csv")
+DATASETS=("crossover_search" "gd_wins_ne" "fat_matrix_trap" "memory_killer")
+#DATASETS=("medium_bench.csv" "tiny_test.csv" "standard_mid.csv" "big_heavy.csv" "year_prediction_msd.csv" "huge_stress.csv" "large_stress.csv")
 THREADS=(1 2 4 8 12 16 20 24 32 40)
+
+TIMEOUT_SECS=120
 
 FINAL_RESULTS="$HOME/projeto-omp/results_$(date +%Y%m%d_%H%M)"
 mkdir -p $FINAL_RESULTS/vtune_csvs

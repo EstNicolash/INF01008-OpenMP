@@ -32,7 +32,8 @@ g++ -O3 -g -march=native \
     -o seq_opt.out
 
 
-DATASETS=("medium_bench.csv" "tiny_test.csv" "standard_mid.csv" "big_heavy.csv" "year_prediction_msd.csv" "huge_stress.csv" "large_stress.csv")
+#DATASETS=("medium_bench.csv" "tiny_test.csv" "standard_mid.csv" "big_heavy.csv" "year_prediction_msd.csv" "huge_stress.csv" "large_stress.csv")
+DATASETS=("crossover_search" "gd_wins_ne" "fat_matrix_trap" "memory_killer")
 
 FINAL_RESULTS="$HOME/projeto-omp/baselines_$(date +%Y%m%d_%H%M)"
 mkdir -p $FINAL_RESULTS/vtune_csvs
